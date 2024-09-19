@@ -1,0 +1,79 @@
+from sklearn.datasets import load_digits
+from sklearn.cluster import KMeans
+from sklearn.ensemble import StackingClassifier
+from sklearn.ensemble import StackingRegressor
+from sklearn.linear_model import LinearRegression
+from sklearn.neighbors import KNeighborsRegressor
+import matplotlib.pyplot as plt
+from sklearn.svm import SVR
+import numpy as np
+import pandas as pd
+import yfinance as yf
+
+btc = yf.download('BTC-USD', period='max')
+(btc.dropna(inplace=True))
+
+benefit = btc["Close"] - btc["Open"]
+btc["benefit"] = benefit
+
+if (benefit >= 0).all():
+    btc["high_shadow"] = btc["High"] - btc["Close"]
+    btc["low_shadow"] = btc["Open"] - btc["Low"]
+else:
+    btc["high_shadow"] = btc["High"] - btc["Open"]
+    btc["low_shadow"] = btc["Close"] - btc["Low"]
+
+print(btc.info())
+X = btc[["Open", "High", "Low", "Close", "high_shadow", "low_shadow", "benefit"]]
+y = btc["benefit"]
+
+cluster_model = KMeans(n_clusters=3)
+
+cluster_model.fit(X)
+prediction = cluster_model.predict(X)
+
+cluster_1_X = X[prediction == 0]
+cluster_1_y = y[prediction == 0]
+
+cluster_2_X = X[prediction == 1]
+cluster_2_y = y[prediction == 1]
+
+cluster_3_X = X[prediction == 2]
+cluster_3_y = y[prediction == 2]
+
+# base model
+model_1 = SVR()
+model_1.fit(cluster_1_X, cluster_1_y)
+y_pred_1 = model_1.predict(X)
+
+model_2 = LinearRegression()
+model_2.fit(cluster_2_X, cluster_2_y)
+y_pred_2 = model_2.predict(X)
+
+model_3 = KNeighborsRegressor(n_neighbors=5)
+model_3.fit(cluster_3_X, cluster_3_y)
+y_pred_3 = model_3.predict(X)
+
+meta_model = StackingClassifier(estimators=[('svm', model_1), ('logistic', model_2), ('knn', model_3)])
+meta_model = StackingRegressor(estimators=[('svm', model_1), ('linear', model_2), ('knn', model_3)])
+
+meta_model.fit(X, y)
+y_pred = meta_model.predict(X)
+
+plt.plot(y_pred)
+plt.show()
+
+plt.plot(y_pred_1, color="g")
+plt.show()
+
+plt.plot(y_pred_2, color="b")
+plt.show()
+
+plt.plot(y_pred_3, color="r")
+plt.show()
+
+plt.plot(y_pred_1, color="g")
+plt.plot(y_pred_2, color="b")
+plt.plot(y_pred_3, color="r")
+plt.show()
+
